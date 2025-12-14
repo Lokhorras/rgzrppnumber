@@ -1,0 +1,5 @@
+Flask==2.3.3
+Flasgger==0.9.7.1
+PyYAML==6.0.1
+bandit==1.7.5
+Flask-CORS==4.0.0
