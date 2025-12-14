@@ -32,7 +32,7 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit
-        # Игнорируем ошибки (|| true), чтобы процесс не падал, если найдутся уязвимости
+        # || true позволяет продолжить выполнение даже при найденных уязвимостях
         run: |
           bandit -r . -f html -o bandit-report.html || true
           ls -la bandit-report.html || touch bandit-report.html
@@ -56,22 +56,36 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        # ИСПРАВЛЕНО: Добавлен пакет Flask-Cors
-        run: pip install Flask==2.3.3 Flasgger==0.9.7.1 PyYAML==6.0 Flask-Cors
+        # Обновил версии согласно вашим данным (PyYAML 6.0.1 важен для Linux)
+        run: pip install Flask==2.3.3 Flasgger==0.9.7.1 PyYAML==6.0.1 Flask-Cors==4.0.0
 
       - name: Check installed packages
         run: pip list
 
       - name: Create simple Python script
+        # ИСПРАВЛЕНО: Используем test_client для получения JSON спецификации
+        # Это обходит ошибку KeyError: 'flasgger'
         run: |
           cat > make_openapi.py << 'EOF'
           try:
               from app import app
               import yaml
-              spec = app.extensions['flasgger'].swagger
-              with open('openapi.yaml', 'w') as f:
-                  yaml.dump(spec, f)
-              print('OpenAPI created')
+              import json
+              
+              # Создаем тестовый клиент Flask
+              with app.test_client() as client:
+                  # Flasgger по умолчанию генерирует JSON по этому пути
+                  response = client.get('/apispec_1.json')
+                  
+                  if response.status_code == 200:
+                      spec = response.get_json()
+                      with open('openapi.yaml', 'w') as f:
+                          yaml.dump(spec, f)
+                      print('OpenAPI created successfully')
+                  else:
+                      print(f'Error fetching spec: {response.status_code}')
+                      exit(1)
+                      
           except Exception as e:
               print(f'Error: {e}')
               exit(1)
