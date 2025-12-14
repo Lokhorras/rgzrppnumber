@@ -32,8 +32,7 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit
-        # Исправлено: добавлены операторы || true, чтобы ошибка безопасности не останавливала пайплайн (по желанию можно убрать)
-        # И добавлены || перед touch для корректного bash-синтаксиса
+        # Игнорируем ошибки (|| true), чтобы процесс не падал, если найдутся уязвимости
         run: |
           bandit -r . -f html -o bandit-report.html || true
           ls -la bandit-report.html || touch bandit-report.html
@@ -57,14 +56,13 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        # ИСПРАВЛЕНО: Flasgger обновлен до 0.9.7.1 для совместимости с Flask 2.3.3
-        run: pip install Flask==2.3.3 Flasgger==0.9.7.1 PyYAML==6.0
+        # ИСПРАВЛЕНО: Добавлен пакет Flask-Cors
+        run: pip install Flask==2.3.3 Flasgger==0.9.7.1 PyYAML==6.0 Flask-Cors
 
       - name: Check installed packages
         run: pip list
 
       - name: Create simple Python script
-        # ИСПРАВЛЕНО: Скорректированы отступы для блока run
         run: |
           cat > make_openapi.py << 'EOF'
           try:
