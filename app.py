@@ -11,7 +11,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 app.config['JSON_AS_ASCII'] = False
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
 
-# Конфигурация Swagger
+# Конфигурация Swagger 
 app.config['SWAGGER'] = {
     'title': 'Phone Contacts API',
     'description': 'API для управления телефонными контактами',
@@ -23,11 +23,15 @@ swagger = Swagger(app)
 # Хранение данных в словаре
 contacts_db = {}
 contact_counter = 1
+      
+# ==================== ВЕБ-ИНТЕРФЕЙС ====================
 
 @app.route('/')
 def index():
     """Главная страница с веб-интерфейсом"""
     return render_template('index.html')
+
+# ==================== API ЭНДПОИНТЫ ====================
 
 @app.route('/contacts', methods=['POST', 'OPTIONS'])
 @swag_from({
@@ -73,6 +77,7 @@ def create_contact():
     global contact_counter
     
     if request.method == 'OPTIONS':
+        # Обработка CORS preflight запросов
         response = jsonify({'status': 'ok'})
         response.headers.add('Access-Control-Allow-Origin', '*')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
