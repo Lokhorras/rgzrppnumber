@@ -1,11 +1,144 @@
-name: Test Workflow
+name: Deploy API Documentation
 
-on: [push]
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  test:
+  security-scan:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Test step
-        run: echo "Workflow is working!"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run Bandit security scan
+        run: |
+          bandit -r . -f html -o bandit-report.html || echo "Bandit scan completed"
+          ls -la bandit-report.html || echo "Report file not created"
+      
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.html
+
+  generate-openapi:
+    runs-on: ubuntu-latest
+    needs: security-scan
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Generate OpenAPI specification
+        run: |
+          python3 -c "
+from app import app
+import yaml
+
+try:
+    spec = app.extensions['flasgger'].swagger
+    with open('openapi.yaml', 'w', encoding='utf-8') as f:
+        yaml.dump(spec, f, allow_unicode=True, default_flow_style=False)
+    print('OpenAPI specification generated successfully!')
+except Exception as e:
+    print(f'Error: {e}')
+    exit(1)
+          "
+      
+      - name: Check OpenAPI file
+        run: |
+          echo "Checking OpenAPI file..."
+          if [ -f openapi.yaml ]; then
+            echo "File openapi.yaml exists"
+            ls -lh openapi.yaml
+          else
+            echo "ERROR: openapi.yaml not found!"
+            exit 1
+          fi
+      
+      - name: Upload OpenAPI spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-spec
+          path: openapi.yaml
+
+  deploy-documentation:
+    runs-on: ubuntu-latest
+    needs: generate-openapi
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download OpenAPI spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-spec
+          path: ./
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+      
+      - name: Install Redocly CLI
+        run: npm install -g @redocly/cli@latest
+      
+      - name: Create docs directory
+        run: mkdir -p docs
+      
+      - name: Generate ReDoc documentation
+        run: redocly build-docs openapi.yaml --output=docs/index.html
+      
+      - name: Create simple index
+        run: |
+          cat > docs/index.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Phone Contacts API Documentation</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+    <style>
+        body { margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+    <redoc spec-url='openapi.yaml'></redoc>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+</body>
+</html>
+EOF
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './docs'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
