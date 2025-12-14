@@ -32,6 +32,7 @@ jobs:
         run: pip install bandit
 
       - name: Run Bandit
+        # Исправлено: добавлены операторы || для корректной логики bash
         run: |
           bandit -r . -f html -o bandit-report.html || true
           ls -la bandit-report.html || touch bandit-report.html
@@ -61,30 +62,31 @@ jobs:
         run: pip list
 
       - name: Create simple Python script
+        # ВАЖНО: Весь блок ниже сдвинут вправо, чтобы быть внутри run
         run: |
           cat > make_openapi.py << 'EOF'
-            try:
-                from app import app
-                import yaml
-                spec = app.extensions['flasgger'].swagger
-                with open('openapi.yaml', 'w') as f:
-                    yaml.dump(spec, f)
-                print('OpenAPI created')
-            except Exception as e:
-                print(f'Error: {e}')
-                exit(1)
-            EOF
+          try:
+              from app import app
+              import yaml
+              spec = app.extensions['flasgger'].swagger
+              with open('openapi.yaml', 'w') as f:
+                  yaml.dump(spec, f)
+              print('OpenAPI created')
+          except Exception as e:
+              print(f'Error: {e}')
+              exit(1)
+          EOF
 
-                - name: Generate OpenAPI
-                    run: |
-                    python make_openapi.py
-                    ls -la openapi.yaml  # проверка файла
+      - name: Generate OpenAPI
+        run: |
+          python make_openapi.py
+          ls -la openapi.yaml
 
-                - name: Upload OpenAPI
-                    uses: actions/upload-artifact@v4
-                    with:
-                    name: openapi
-                    path: openapi.yaml
+      - name: Upload OpenAPI
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: openapi.yaml
 
   deploy:
     runs-on: ubuntu-latest
