@@ -23,10 +23,17 @@ jobs:
         python-version: '3.10'
     
     - name: Install dependencies
-      run: pip install -r requirements.txt
+      run: |
+        pip install Flask==2.3.3
+        pip install Flasgger==0.9.7.1
+        pip install PyYAML==6.0
+        pip install bandit==1.7.5
+        pip install Flask-CORS==4.0.0
     
     - name: Run Bandit security scan
-      run: bandit -r . -f html -o bandit-report.html || echo "Bandit completed"
+      run: |
+        python -m bandit -r . -f html -o bandit-report.html
+        ls -la bandit-report.html || touch bandit-report.html
     
     - name: Upload Bandit report
       uses: actions/upload-artifact@v4
@@ -48,36 +55,66 @@ jobs:
         python-version: '3.10'
     
     - name: Install dependencies
-      run: pip install -r requirements.txt
+      run: |
+        pip install Flask==2.3.3
+        pip install Flasgger==0.9.7.1
+        pip install PyYAML==6.0
+        pip install Flask-CORS==4.0.0
     
     - name: Generate OpenAPI specification
       run: |
-        python3 -c "from app import app; import yaml
+        # Сначала проверим структуру проекта
+        echo "Содержимое проекта:"
+        ls -la
+        echo "---"
+        
+        # Создаем простой скрипт для генерации OpenAPI
+        cat > generate_openapi.py << 'EOF'
+        from app import app
+        import yaml
+
+        print("Генерация OpenAPI спецификации...")
         try:
+            # Получаем спецификацию из Flasgger
             spec = app.extensions['flasgger'].swagger
+            
+            # Сохраняем в файл
             with open('openapi.yaml', 'w', encoding='utf-8') as f:
                 yaml.dump(spec, f, allow_unicode=True, default_flow_style=False)
-            print('OpenAPI specification generated successfully!')
+            
+            print("✅ OpenAPI спецификация успешно сгенерирована!")
+            print(f"Размер спецификации: {len(str(spec))} символов")
+            
         except Exception as e:
-            print(f'Error: {e}')
-            exit(1)"
-    
-    - name: Check OpenAPI file
-      run: |
-        echo "Checking OpenAPI file..."
+            print(f"❌ Ошибка: {e}")
+            print(f"Тип ошибки: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            exit(1)
+        EOF
+                
+                python generate_openapi.py
+            
+            - name: Check OpenAPI file
+            run: |
+        echo "=== Проверка OpenAPI файла ==="
         if [ -f openapi.yaml ]; then
-          echo "File openapi.yaml exists"
+          echo "✅ Файл openapi.yaml создан"
+          echo "Размер:"
           ls -lh openapi.yaml
+          echo "Первые 5 строк:"
+          head -5 openapi.yaml
         else
-          echo "ERROR: openapi.yaml not found!"
+          echo "❌ Файл openapi.yaml не найден!"
+          ls -la
           exit 1
         fi
     
-    - name: Upload OpenAPI spec
-      uses: actions/upload-artifact@v4
-      with:
-        name: openapi-spec
-        path: openapi.yaml
+        - name: Upload OpenAPI spec
+        uses: actions/upload-artifact@v4
+        with:
+            name: openapi-spec
+            path: openapi.yaml
 
   deploy-documentation:
     runs-on: ubuntu-latest
@@ -119,20 +156,30 @@ jobs:
             <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
             <style>
                 body { margin: 0; padding: 0; }
+                .header {
+                    background: #667eea;
+                    color: white;
+                    padding: 20px;
+                    text-align: center;
+                }
             </style>
         </head>
         <body>
+            <div class="header">
+                <h1>📱 Phone Contacts API</h1>
+                <p>Automatically generated documentation</p>
+            </div>
             <redoc spec-url='openapi.yaml'></redoc>
             <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
         </body>
         </html>
         EOF
-            
-            - name: Upload artifact
-            uses: actions/upload-pages-artifact@v2
-            with:
-                path: './docs'
-            
-            - name: Deploy to GitHub Pages
-            id: deployment
-            uses: actions/deploy-pages@v2
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v2
+      with:
+        path: './docs'
+    
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2
