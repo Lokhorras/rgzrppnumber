@@ -20,7 +20,7 @@ app.config['SWAGGER'] = {
 }
 swagger = Swagger(app)
 
-# Хранение данных в словаре
+# Хранение данных в словаре   ываыв
 contacts_db = {}
 contact_counter = 1
       
